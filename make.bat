@@ -1,0 +1,1 @@
+odin build shadertube -o:none -debug
