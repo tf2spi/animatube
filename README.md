@@ -1,5 +1,6 @@
-# shadertube
-Configurable vtubing using glTF and GLSL shaders
+# animatube
+
+Animated 2D and 3D "png-tubing" using ``Raylib``
 
 # Building
 

@@ -2,8 +2,8 @@
 DEBUGFLAGS=-o:none -debug
 ODINFLAGS=$(DEBUGFLAGS)
 
-all: shadertube.exe
+all: animatube.exe
 
 .PHONY:
-shadertube.exe: .PHONY
-	odin build shadertube $(ODINFLAGS)
+animatube.exe: .PHONY
+	odin build . $(ODINFLAGS)
