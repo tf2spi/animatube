@@ -24,16 +24,16 @@ main :: proc() {
 
 		switch entity in config.idle {
 			case EntityModel:
+			tmp := entity
 			raylib.BeginMode3D(entity.camera)
 			if len(entity.animations) > 0 {
 				animation := entity.animations[0]
-				tmp := entity
 				tmp.frame = (entity.frame + 1) % int(animation.frameCount)
-				config.idle = tmp
 				raylib.UpdateModelAnimation(entity.model, animation, i32(tmp.frame))
 			}
-			raylib.DrawModel(entity.model, entity.position, 1.0, raylib.GRAY)
+			raylib.DrawModel(entity.model, entity.position, 1.0, raylib.WHITE)
 			raylib.EndMode3D()
+			config.idle = tmp
 
 			case EntitySprite:
 		}

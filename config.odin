@@ -9,6 +9,7 @@ import "core:math"
 
 EntityModel :: struct {
 	model: raylib.Model,
+	material: raylib.Texture2D,
 	animations: []raylib.ModelAnimation,
 	camera: raylib.Camera,
 	position: raylib.Vector3,
@@ -147,6 +148,7 @@ config_util_json_entity :: proc(value: json.Value) -> Entity {
 			}
 			model = EntityModel {
 				raylib.LoadModel(filename),
+				{},
 				animations[0:anim_count],
 				camera_default(),
 				position,
@@ -154,15 +156,16 @@ config_util_json_entity :: proc(value: json.Value) -> Entity {
 				0,
 			}
 			delete(filename)
+
 			case:
 			log.warnf("Model from entity json was not string!")
+			return entity
 		}
 
-		// Each entity gets their own camera if they're a model
 		camera_value: json.Value
 		camera_value, ok = object["camera"]
 		if ok {
-			log.infof("Parsing camera ...")
+			log.infof("Parsing entity.camera ...")
 			#partial switch obj in camera_value {
 				case json.Object:
 				point: json.Value
@@ -189,6 +192,27 @@ config_util_json_entity :: proc(value: json.Value) -> Entity {
 				}
 				case:
 				log.warnf("Camera from json was not object!")
+			}
+		}
+
+		material_value: json.Value
+		material_value, ok = object["material"]
+		if ok {
+			log.infof("Parsing entity.material ...")
+			#partial switch s in material_value {
+				case string:
+				filename := strings.clone_to_cstring(s)
+				model.material = raylib.LoadTexture(filename)
+				if model.model.materialCount > 0 && model.material.id > 0 {
+					raylib.SetMaterialTexture(
+						&model.model.materials[0],
+						raylib.MaterialMapIndex.ALBEDO,
+						model.material)
+				}
+				delete(filename)
+
+				case:
+				log.warnf("Expected file name for material from json!")
 			}
 		}
 		entity = model
