@@ -9,7 +9,7 @@ main :: proc() {
 	width, height :: 800, 600
 	raylib.InitWindow(i32(width), i32(height), "Animatube")
 
-	config, ok := config_load_json("suzanne.json")
+	config, ok := config_load_json("animation.json")
 	if !ok {
 		config = config_default()
 	}
@@ -17,15 +17,22 @@ main :: proc() {
 	raylib.SetTargetFPS(60)
 	for !raylib.WindowShouldClose() {
 		if raylib.IsKeyPressed(raylib.KeyboardKey.A) {
-			fmt.println("Poggers!")
+			log.infof("Poggers!")
 		}
 		raylib.BeginDrawing()
 		raylib.ClearBackground(raylib.GREEN)
 
-		switch entity in config.entity {
+		switch entity in config.idle {
 			case EntityModel:
-			raylib.BeginMode3D(config.camera)
-			raylib.DrawModel(entity.model, raylib.Vector3{0.0, 0.0, 0.0}, 1.0, raylib.GRAY)
+			raylib.BeginMode3D(entity.camera)
+			if len(entity.animations) > 0 {
+				animation := entity.animations[0]
+				tmp := entity
+				tmp.frame = (entity.frame + 1) % int(animation.frameCount)
+				config.idle = tmp
+				raylib.UpdateModelAnimation(entity.model, animation, i32(tmp.frame))
+			}
+			raylib.DrawModel(entity.model, entity.position, 1.0, raylib.GRAY)
 			raylib.EndMode3D()
 
 			case EntitySprite:

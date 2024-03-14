@@ -10,12 +10,24 @@ import "core:math"
 EntityModel :: struct {
 	model: raylib.Model,
 	animations: []raylib.ModelAnimation,
+	camera: raylib.Camera,
+	position: raylib.Vector3,
+	emote: int,
+	frame: int,
 }
 
 EntitySprite :: struct {
-	images: []raylib.Image,
-	time: f32,
-	remaining: f32,
+	texture: raylib.Texture2D,
+	animations: []struct {
+		images: raylib.Image,
+		count: int,
+		stride: int,
+	},
+	position: raylib.Vector2,
+	emote: int,
+	idx: int,
+	delay: uint,
+	remaining: uint,
 }
 
 Entity :: union {
@@ -28,16 +40,24 @@ Configuration :: struct {
 	tint: raylib.Color,
 	window: raylib.Vector2,
 	camera: raylib.Camera,
-	entity: Entity,
+	idle: Entity,
 }
 
+camera_default :: proc() -> raylib.Camera {
+	camera: raylib.Camera
+	camera.up = raylib.Vector3 { 0, 1, 0 }
+	camera.projection = raylib.CameraProjection.ORTHOGRAPHIC
+	camera.fovy = 90
+	return camera
+}
+
+// This is a constant but Odin doesn't wanna admit it. Shrug.
 config_default :: proc() -> Configuration {
 	config: Configuration
 	config.keycolor = raylib.GREEN
 	config.tint = raylib.WHITE
 	config.window = raylib.Vector2 { 800, 600, }
-	config.camera.up = raylib.Vector3 { 0, 1, 0 }
-	config.camera.projection = raylib.CameraProjection.ORTHOGRAPHIC
+	config.camera = camera_default()
 	return config
 }
 
@@ -71,10 +91,9 @@ config_util_json_array_float :: proc(value: json.Value, size: int, allocator := 
 		}
 		append(&array, f)
 	}
-	if size >= 0 && size != len(array) {
-		log.errorf("Expected json float array of size %d but got size %d", size, len(array))
-		delete(array)
-		return array, false
+	if size >= 0 {
+		for size > len(array) { append(&array, 0) }
+		for size < len(array) { pop(&array) }
 	}
 	return array, true
 }
@@ -97,6 +116,87 @@ config_util_json_vector4 :: proc(value: json.Value, default: raylib.Vector4) -> 
 	return raylib.Vector4 { f32(array[0]), f32(array[1]), f32(array[2]), f32(array[3]) } if ok else default
 }
 
+config_util_json_entity :: proc(value: json.Value) -> Entity {
+	entity: Entity = {}
+	object, ok := value.(json.Object)
+	if !ok {
+		log.warnf("Entity provided was not an object in json!")
+		return entity
+	}
+	position: raylib.Vector3
+	position_value: json.Value
+	position_value, ok = object["position"]
+	if ok {
+		log.infof("Parsing entity.position ... ")
+		position = config_util_json_vector3(position_value, position)
+	}
+
+	model_value: json.Value
+	model_value, ok = object["model"]
+	if ok {
+		log.infof("Parsing model ...")
+		model: EntityModel
+		#partial switch s in model_value {
+			case string:
+			filename := strings.clone_to_cstring(s)
+			anim_count: libc.int = 0
+			animations := raylib.LoadModelAnimations(filename, &anim_count)
+			if animations != nil && anim_count == 0 {
+				raylib.UnloadModelAnimations(animations, 0)
+				animations = nil
+			}
+			model = EntityModel {
+				raylib.LoadModel(filename),
+				animations[0:anim_count],
+				camera_default(),
+				position,
+				0,
+				0,
+			}
+			delete(filename)
+			case:
+			log.warnf("Model from entity json was not string!")
+		}
+
+		// Each entity gets their own camera if they're a model
+		camera_value: json.Value
+		camera_value, ok = object["camera"]
+		if ok {
+			log.infof("Parsing camera ...")
+			#partial switch obj in camera_value {
+				case json.Object:
+				point: json.Value
+	
+				point, ok = obj["position"]
+				if ok {
+					log.infof("Parsing camera.position ...")
+					model.camera.position = config_util_json_vector3(point, {})
+				}
+				point, ok = obj["target"]
+				if ok {
+					log.infof("Parsing camera.target ...")
+					model.camera.target = config_util_json_vector3(point, {})
+				}
+				point, ok = obj["up"]
+				if ok {
+					log.infof("Parsing camera.up ...")
+					model.camera.up = config_util_json_vector3(point, {0, 1, 0})
+				}
+				point, ok = obj["fovy"]
+				if ok {
+					log.info("Parsing camera.fovy ...")
+					model.camera.fovy = f32(config_util_json_f64(point, 90))
+				}
+				case:
+				log.warnf("Camera from json was not object!")
+			}
+		}
+		entity = model
+	}
+	// TODO: If a model isn't used, parse a GIF or series of images
+	return entity
+}
+
 config_parse_json :: proc(config_value: json.Value) -> (Configuration, bool) {
 	config := config_default()
 	config_object, ok := config_value.(json.Object)
@@ -104,57 +204,14 @@ config_parse_json :: proc(config_value: json.Value) -> (Configuration, bool) {
 		log.errorf("Expected config to be an object!")
 		return config, false
 	}
-
 	value: json.Value
-	value, ok = config_object["model"]
+	value, ok = config_object["idle"]
 	if ok {
-		log.infof("Parsing model ...")
-		#partial switch s in value {
-			case string:
-			filename := strings.clone_to_cstring(s)
-			anim_count: libc.int = 0
-			animations := raylib.LoadModelAnimations(filename, &anim_count)
-			config.entity = EntityModel {
-				raylib.LoadModel(filename),
-				animations[0:anim_count],
-			}
-			delete(filename)
-			case:
-			log.warnf("Model from json was not string!")
-		}
-
-		value, ok = config_object["camera"]
-		if ok {
-			log.infof("Parsing camera ...")
-			#partial switch obj in value {
-				case json.Object:
-				point: json.Value
-
-				point, ok = obj["position"]
-				if ok {
-					log.infof("Parsing camera.position ...")
-					config.camera.position = config_util_json_vector3(point, {})
-				}
-				point, ok = obj["target"]
-				if ok {
-					log.infof("Parsing camera.target ...")
-					config.camera.target = config_util_json_vector3(point, {})
-				}
-				point, ok = obj["up"]
-				if ok {
-					log.infof("Parsing camera.up ...")
-					config.camera.up = config_util_json_vector3(point, {0, 1, 0})
-				}
-				point, ok = obj["fovy"]
-				if ok {
-					log.info("Parsing camera.fovy ...")
-					config.camera.fovy = f32(config_util_json_f64(point, 90))
-				}
-				case:
-				log.warnf("Camera from json was not object!")
-			}
-		}
+		log.infof("Parsing idle entity ...")
+		config.idle = config_util_json_entity(value)
 	}
+
+
 
 	return config, ok
 }
