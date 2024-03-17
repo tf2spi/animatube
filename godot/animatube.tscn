@@ -1,0 +1,14 @@
+[gd_scene load_steps=3 format=3 uid="uid://bpikdoh0p8sqv"]
+
+[ext_resource type="PackedScene" uid="uid://cng46ft6w14o1" path="res://suzanne.gltf" id="1_ssm72"]
+[ext_resource type="Script" path="res://Camera3D.gd" id="2_vng1t"]
+
+[node name="Node3D" type="Node3D"]
+
+[node name="suzanne" parent="." instance=ExtResource("1_ssm72")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.0666686, 0.0318556, 0.00844526)
+
+[node name="Camera3D" type="Camera3D" parent="."]
+transform = Transform3D(0.991119, 0.0485551, 0.123799, -0.0592983, 0.994647, 0.0846252, -0.119027, -0.0912147, 0.988692, 0.574678, 1.00898, 4.15264)
+fov = 63.4418
+script = ExtResource("2_vng1t")
